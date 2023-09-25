@@ -15,7 +15,7 @@
  * limitations under the License.
  */
 
-package org.apache.uniffle.flink.shuffle;
+package org.apache.uniffle.shuffle;
 
 import java.io.IOException;
 import java.util.Arrays;

@@ -15,7 +15,7 @@
  * limitations under the License.
  */
 
-package org.apache.uniffle.flink.shuffle;
+package org.apache.uniffle.shuffle;
 
 import org.apache.flink.runtime.deployment.ResultPartitionDeploymentDescriptor;
 import org.apache.flink.runtime.io.network.partition.ResultPartition;

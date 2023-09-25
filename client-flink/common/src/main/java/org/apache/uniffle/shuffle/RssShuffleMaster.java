@@ -1,18 +1,16 @@
-package org.apache.uniffle.flink.shuffle;
+package org.apache.uniffle.shuffle;
 
 import org.apache.flink.api.common.JobID;
 import org.apache.flink.configuration.AkkaOptions;
 import org.apache.flink.configuration.MemorySize;
 import org.apache.flink.runtime.shuffle.*;
 import org.apache.uniffle.client.api.CoordinatorClient;
-import org.apache.uniffle.flink.shuffle.rpc.RssShuffleRpcService;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 
 import java.util.HashMap;
 import java.util.Map;
 import java.util.concurrent.CompletableFuture;
-import java.util.concurrent.ExecutionException;
 import java.util.concurrent.ScheduledThreadPoolExecutor;
 import java.util.concurrent.atomic.AtomicBoolean;
 
@@ -35,7 +33,7 @@ public class RssShuffleMaster implements ShuffleMaster<RssShuffleDescriptor> {
       new ScheduledThreadPoolExecutor(1,
       runnable -> new Thread(runnable, "remote-shuffle-master-executor"));
 
-  private final RssShuffleRpcService rpcService;
+
 
   public RssShuffleMaster(ShuffleMasterContext shuffleMasterContext) {
     this.shuffleMasterContext = shuffleMasterContext;
@@ -43,21 +41,6 @@ public class RssShuffleMaster implements ShuffleMaster<RssShuffleDescriptor> {
     this.partitionFactory = null;
         // configuration.getString(PluginOptions.DATA_PARTITION_FACTORY_NAME);
 
-    RssShuffleRpcService tmpRpcService = null;
-    Throwable error = null;
-    try {
-      tmpRpcService = createRpcService();
-    } catch (Throwable throwable) {
-      LOG.error("Failed to create the shuffle master RPC service.", throwable);
-      error = throwable;
-    }
-    this.rpcService = tmpRpcService;
-
-    if (error != null) {
-      close();
-      shuffleMasterContext.onFatalError(error);
-      // throw new ShuffleException("Failed to initialize shuffle master.", error);
-    }
   }
 
   @Override
@@ -79,13 +62,7 @@ public class RssShuffleMaster implements ShuffleMaster<RssShuffleDescriptor> {
                 }
                 shuffleClients.clear();
 
-                try {
-                  if (rpcService != null) {
-                    rpcService.stopService().get();
-                  }
-                } catch (Throwable throwable) {
-                  LOG.error("Failed to close the rpc service.", throwable);
-                }
+
 
                 try {
                   executor.shutdown();
@@ -119,14 +96,5 @@ public class RssShuffleMaster implements ShuffleMaster<RssShuffleDescriptor> {
 
   @Override
   public void releasePartitionExternally(ShuffleDescriptor shuffleDescriptor) {
-  }
-
-  RssShuffleRpcService createRpcService() throws Exception {
-    org.apache.flink.configuration.Configuration configuration =
-        new org.apache.flink.configuration.Configuration(shuffleMasterContext.getConfiguration());
-    configuration.set(AkkaOptions.FORK_JOIN_EXECUTOR_PARALLELISM_MIN, 2);
-    configuration.set(AkkaOptions.FORK_JOIN_EXECUTOR_PARALLELISM_MAX, 2);
-    configuration.set(AkkaOptions.FORK_JOIN_EXECUTOR_PARALLELISM_FACTOR, 1.0);
-    return null;
   }
 }
