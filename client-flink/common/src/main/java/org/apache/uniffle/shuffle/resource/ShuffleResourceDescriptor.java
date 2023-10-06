@@ -17,28 +17,32 @@
 
 package org.apache.uniffle.shuffle.resource;
 
-import java.util.List;
+public class ShuffleResourceDescriptor {
+  private final int shuffleId;
+  private final int mapId;
+  private final int attemptId;
+  private final int partitionId;
 
-import org.apache.uniffle.common.ShuffleServerInfo;
-
-public class DefaultRssShuffleResource implements RssShuffleResource {
-
-  private final List<ShuffleServerInfo> shuffleServerInfos;
-  private final ShuffleResourceDescriptor shuffleResourceDescriptor;
-
-  public DefaultRssShuffleResource(
-      List<ShuffleServerInfo> shuffleServerInfos,
-      ShuffleResourceDescriptor shuffleResourceDescriptor) {
-    this.shuffleServerInfos = shuffleServerInfos;
-    this.shuffleResourceDescriptor = shuffleResourceDescriptor;
+  public ShuffleResourceDescriptor(int shuffleId, int mapId, int attemptId, int partitionId) {
+    this.shuffleId = shuffleId;
+    this.mapId = mapId;
+    this.attemptId = attemptId;
+    this.partitionId = partitionId;
   }
 
-  @Override
-  public List<ShuffleServerInfo> getMapPartitionLocation() {
-    return shuffleServerInfos;
+  public int getShuffleId() {
+    return shuffleId;
   }
 
-  public ShuffleResourceDescriptor getShuffleResourceDescriptor() {
-    return shuffleResourceDescriptor;
+  public int getMapId() {
+    return mapId;
+  }
+
+  public int getAttemptId() {
+    return attemptId;
+  }
+
+  public int getPartitionId() {
+    return partitionId;
   }
 }

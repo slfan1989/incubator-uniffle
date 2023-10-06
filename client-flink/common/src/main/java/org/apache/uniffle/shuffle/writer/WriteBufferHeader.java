@@ -15,30 +15,32 @@
  * limitations under the License.
  */
 
-package org.apache.uniffle.shuffle.resource;
+package org.apache.uniffle.shuffle.writer;
 
-import java.util.List;
+import org.apache.flink.runtime.io.network.buffer.Buffer;
 
-import org.apache.uniffle.common.ShuffleServerInfo;
+public class WriteBufferHeader {
+  private final Buffer.DataType dataType;
 
-public class DefaultRssShuffleResource implements RssShuffleResource {
+  private final boolean isCompressed;
 
-  private final List<ShuffleServerInfo> shuffleServerInfos;
-  private final ShuffleResourceDescriptor shuffleResourceDescriptor;
+  private final int size;
 
-  public DefaultRssShuffleResource(
-      List<ShuffleServerInfo> shuffleServerInfos,
-      ShuffleResourceDescriptor shuffleResourceDescriptor) {
-    this.shuffleServerInfos = shuffleServerInfos;
-    this.shuffleResourceDescriptor = shuffleResourceDescriptor;
+  public WriteBufferHeader(Buffer.DataType dataType, boolean isCompressed, int size) {
+    this.dataType = dataType;
+    this.isCompressed = isCompressed;
+    this.size = size;
   }
 
-  @Override
-  public List<ShuffleServerInfo> getMapPartitionLocation() {
-    return shuffleServerInfos;
+  public Buffer.DataType getDataType() {
+    return dataType;
   }
 
-  public ShuffleResourceDescriptor getShuffleResourceDescriptor() {
-    return shuffleResourceDescriptor;
+  public boolean isCompressed() {
+    return isCompressed;
+  }
+
+  public int getSize() {
+    return size;
   }
 }

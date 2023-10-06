@@ -17,16 +17,6 @@
 
 package org.apache.uniffle.shuffle.writer;
 
-import java.nio.ByteBuffer;
-
-import org.apache.flink.runtime.io.network.buffer.Buffer;
-
-public class DataAndType {
-  private final ByteBuffer data;
-  private final Buffer.DataType dataType;
-
-  DataAndType(ByteBuffer data, Buffer.DataType dataType) {
-    this.data = data;
-    this.dataType = dataType;
-  }
+public interface BiConsumerWithException<T, U, E extends Throwable> {
+  void accept(T var1, U var2) throws E;
 }

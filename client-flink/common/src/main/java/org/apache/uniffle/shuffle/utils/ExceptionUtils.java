@@ -15,30 +15,17 @@
  * limitations under the License.
  */
 
-package org.apache.uniffle.shuffle.resource;
+package org.apache.uniffle.shuffle.utils;
 
-import java.util.List;
+public class ExceptionUtils {
 
-import org.apache.uniffle.common.ShuffleServerInfo;
-
-public class DefaultRssShuffleResource implements RssShuffleResource {
-
-  private final List<ShuffleServerInfo> shuffleServerInfos;
-  private final ShuffleResourceDescriptor shuffleResourceDescriptor;
-
-  public DefaultRssShuffleResource(
-      List<ShuffleServerInfo> shuffleServerInfos,
-      ShuffleResourceDescriptor shuffleResourceDescriptor) {
-    this.shuffleServerInfos = shuffleServerInfos;
-    this.shuffleResourceDescriptor = shuffleResourceDescriptor;
-  }
-
-  @Override
-  public List<ShuffleServerInfo> getMapPartitionLocation() {
-    return shuffleServerInfos;
-  }
-
-  public ShuffleResourceDescriptor getShuffleResourceDescriptor() {
-    return shuffleResourceDescriptor;
+  public static void translateToRuntimeException(Throwable t) {
+    if (t instanceof Error) {
+      throw (Error) t;
+    } else if (t instanceof RuntimeException) {
+      throw (RuntimeException) t;
+    } else {
+      throw new RuntimeException(t);
+    }
   }
 }

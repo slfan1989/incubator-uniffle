@@ -19,37 +19,36 @@ package org.apache.uniffle.shuffle;
 
 import org.apache.flink.runtime.deployment.ResultPartitionDeploymentDescriptor;
 import org.apache.flink.runtime.io.network.partition.ResultPartition;
-import org.apache.uniffle.common.config.RssConf;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 
+import org.apache.uniffle.common.config.RssConf;
+
 public class RssResultPartitionFactory {
 
-  private static final Logger LOG =
-            LoggerFactory.getLogger(RssResultPartitionFactory.class);
+  private static final Logger LOG = LoggerFactory.getLogger(RssResultPartitionFactory.class);
 
+  public ResultPartition create(
+      String taskNameWithSubtaskAndId,
+      int partitionIndex,
+      ResultPartitionDeploymentDescriptor desc,
+      RssConf rssConf) {
+    LOG.info(
+        "Create result partition -- number of buffers per result partition={}, "
+            + "number of subpartitions={}.",
+        numBuffersPerPartition,
+        desc.getNumberOfSubpartitions());
 
-    public ResultPartition create(
-            String taskNameWithSubtaskAndId,
-            int partitionIndex,
-            ResultPartitionDeploymentDescriptor desc,
-            RssConf rssConf) {
-        LOG.info(
-                "Create result partition -- number of buffers per result partition={}, "
-                        + "number of subpartitions={}.",
-                numBuffersPerPartition,
-                desc.getNumberOfSubpartitions());
-
-        return create(
-                taskNameWithSubtaskAndId,
-                partitionIndex,
-                desc.getShuffleDescriptor().getResultPartitionID(),
-                desc.getPartitionType(),
-                desc.getNumberOfSubpartitions(),
-                desc.getMaxParallelism(),
-                createBufferPoolFactory(),
-                desc.getShuffleDescriptor(),
-                rssConf,
-                desc.getTotalNumberOfPartitions());
-    }
+    return create(
+        taskNameWithSubtaskAndId,
+        partitionIndex,
+        desc.getShuffleDescriptor().getResultPartitionID(),
+        desc.getPartitionType(),
+        desc.getNumberOfSubpartitions(),
+        desc.getMaxParallelism(),
+        createBufferPoolFactory(),
+        desc.getShuffleDescriptor(),
+        rssConf,
+        desc.getTotalNumberOfPartitions());
+  }
 }

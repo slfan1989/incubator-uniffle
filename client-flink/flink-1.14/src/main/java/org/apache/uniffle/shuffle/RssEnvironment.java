@@ -35,6 +35,7 @@ import org.apache.flink.runtime.io.network.partition.ResultPartitionManager;
 import org.apache.flink.runtime.io.network.partition.consumer.IndexedInputGate;
 import org.apache.flink.runtime.shuffle.ShuffleEnvironment;
 import org.apache.flink.runtime.shuffle.ShuffleIOOwnerContext;
+
 import org.apache.uniffle.common.config.RssConf;
 
 import static com.google.gson.internal.$Gson$Preconditions.checkNotNull;
@@ -53,7 +54,8 @@ public class RssEnvironment implements ShuffleEnvironment<ResultPartitionWriter,
   private final RssResultPartitionFactory resultPartitionFactory;
   private final RssInputGateFactory inputGateFactory;
 
-  public RssEnvironment(NetworkBufferPool networkBufferPool,
+  public RssEnvironment(
+      NetworkBufferPool networkBufferPool,
       ResultPartitionManager resultPartitionManager,
       RssResultPartitionFactory resultPartitionFactory,
       RssInputGateFactory inputGateFactory,
@@ -91,23 +93,19 @@ public class RssEnvironment implements ShuffleEnvironment<ResultPartitionWriter,
       ResultPartitionWriter[] resultPartitions = new ResultPartitionWriter[list.size()];
       for (int index = 0; index < resultPartitions.length; index++) {
         resultPartitions[index] =
-                createResultPartitionWriters(
-                shuffleIOOwnerContext,
-                index,
-                list.get(index),
-                conf);
+            createResultPartitionWriters(shuffleIOOwnerContext, index, list.get(index), conf);
       }
       return Arrays.asList(resultPartitions);
     }
   }
 
   public ResultPartitionWriter createResultPartitionWriters(
-          ShuffleIOOwnerContext ownerContext,
-          int index,
-          ResultPartitionDeploymentDescriptor resultPartitionDeploymentDescriptor,
-          RssConf conf) {
+      ShuffleIOOwnerContext ownerContext,
+      int index,
+      ResultPartitionDeploymentDescriptor resultPartitionDeploymentDescriptor,
+      RssConf conf) {
     return resultPartitionFactory.create(
-            ownerContext.getOwnerName(), index, resultPartitionDeploymentDescriptor, conf);
+        ownerContext.getOwnerName(), index, resultPartitionDeploymentDescriptor, conf);
   }
 
   @Override
