@@ -118,6 +118,11 @@ public class RssFlinkConfig {
           .intType()
           .defaultValue(1);
 
+  public static final ConfigOption<String> RSS_REMOTE_STORAGE_PATH =
+      ConfigOptions.key(FLINK_RSS_CONFIG_PREFIX + RssClientConfig.RSS_REMOTE_STORAGE_PATH)
+           .stringType()
+           .defaultValue("");
+
   public static RssConf toRssConf(Configuration flinkConf) {
     RssConf rssConf = new RssConf();
     for (Map.Entry<String, String> entry : flinkConf.toMap().entrySet()) {
