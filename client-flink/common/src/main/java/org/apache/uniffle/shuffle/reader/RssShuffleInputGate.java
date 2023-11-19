@@ -24,6 +24,7 @@ import java.util.stream.Collectors;
 import java.util.stream.IntStream;
 
 import org.apache.commons.lang3.tuple.Pair;
+import org.apache.flink.configuration.Configuration;
 import org.apache.flink.runtime.checkpoint.channel.InputChannelInfo;
 import org.apache.flink.runtime.deployment.InputGateDeploymentDescriptor;
 import org.apache.flink.runtime.event.TaskEvent;
@@ -35,6 +36,12 @@ import org.apache.flink.runtime.io.network.partition.consumer.IndexedInputGate;
 import org.apache.flink.runtime.io.network.partition.consumer.InputChannel;
 import org.apache.flink.runtime.shuffle.ShuffleDescriptor;
 import org.apache.flink.util.function.SupplierWithException;
+import org.apache.uniffle.client.factory.ShuffleClientFactory;
+import org.apache.uniffle.client.request.CreateShuffleReadClientRequest;
+import org.apache.uniffle.common.config.RssConf;
+import org.apache.uniffle.common.util.IdHelper;
+import org.apache.uniffle.shuffle.RssFlinkConfig;
+import org.roaringbitmap.longlong.Roaring64NavigableMap;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 
@@ -73,15 +80,18 @@ public class RssShuffleInputGate extends IndexedInputGate {
   private int endSubIndex;
   private long pendingEndOfDataEvents;
 
+  private String basePath;
+
   private final List<ShuffleReadClient> shuffleReadClients = new ArrayList<>();
 
   private Object lock = new Object();
 
   private Queue<Pair<Buffer, InputChannelInfo>> receivedBuffers = new LinkedList<>();
 
+  private RssConf rssConf;
+
   public RssShuffleInputGate(
       String taskName,
-      boolean shuffleChannels,
       int gateIndex,
       int networkBufferSize,
       InputGateDeploymentDescriptor gateDescriptor,
@@ -89,7 +99,9 @@ public class RssShuffleInputGate extends IndexedInputGate {
       SupplierWithException<BufferPool, IOException> bufferPoolFactory,
       BufferDecompressor bufferDecompressor,
       int startSubIndex,
-      int endSubIndex) {
+      int endSubIndex,
+      Configuration conf,
+      RssConf rssConf) {
 
     this.taskName = taskName;
     this.gateIndex = gateIndex;
@@ -102,13 +114,15 @@ public class RssShuffleInputGate extends IndexedInputGate {
     this.clientIndexMap = new int[numChannels];
     this.channelIndexMap = new int[numChannels];
     this.numSubPartitionsHasNotConsumed = new int[numChannels];
-    this.numUnconsumedSubpartitions = initShuffleReadClients(networkBufferSize, shuffleChannels);
+    this.numUnconsumedSubpartitions = initShuffleReadClients();
     this.pendingEndOfDataEvents = numUnconsumedSubpartitions;
     this.startSubIndex = startSubIndex;
     this.endSubIndex = endSubIndex;
+    this.basePath = conf.getString(RssFlinkConfig.RSS_REMOTE_STORAGE_PATH);
+    this.rssConf = rssConf;
   }
 
-  private long initShuffleReadClients(int bufferSize, boolean shuffleChannels) {
+  private long initShuffleReadClients() {
 
     checkState(endSubIndex >= startSubIndex);
     int numSubpartitionsPerChannel = endSubIndex - startSubIndex + 1;
@@ -125,7 +139,34 @@ public class RssShuffleInputGate extends IndexedInputGate {
       RssShuffleDescriptor remoteDescriptor = (RssShuffleDescriptor) descriptor.getRight();
       List<ShuffleServerInfo> mapPartitionLocation =
           remoteDescriptor.getShuffleResource().getMapPartitionLocation();
-      ShuffleReadClient shuffleReadClient = null;
+      String appId = remoteDescriptor.getJobId().toString();
+      int shuffleId = remoteDescriptor.getShuffleResource().getShuffleResourceDescriptor().getShuffleId();
+      int partition = remoteDescriptor.getShuffleResource().getShuffleResourceDescriptor().getPartitionId();
+      int taskAttemptId = remoteDescriptor.getShuffleResource().getShuffleResourceDescriptor().getAttemptId();
+      int partitionNum = gateDescriptor.getShuffleDescriptors().length;
+      // how to get blockIdBitmap
+      Roaring64NavigableMap blockIdBitmap = Roaring64NavigableMap.bitmapOf();
+      Roaring64NavigableMap taskIdBitmap = Roaring64NavigableMap.bitmapOf();
+      Configuration remoteConf = new Configuration();
+
+//      CreateShuffleReadClientRequest request =
+//              new CreateShuffleReadClientRequest(
+//                      appId,
+//                      shuffleId,
+//                      partition,
+//                      basePath,
+//                      1,
+//                      partitionNum,
+//                      blockIdBitmap,
+//                      taskIdBitmap,
+//                      mapPartitionLocation,
+//                      remoteConf,
+//                      (IdHelper) blockId -> taskAttemptId,
+//                      false, // Why
+//                      rssConf);
+      CreateShuffleReadClientRequest request = null;
+      ShuffleReadClient shuffleReadClient =
+           ShuffleClientFactory.getInstance().createShuffleReadClient(request);
       shuffleReadClients.add(shuffleReadClient);
       numSubPartitionsHasNotConsumed[descriptor.getLeft()] = numSubpartitionsPerChannel;
       numUnconsumedSubpartitions += numSubpartitionsPerChannel;

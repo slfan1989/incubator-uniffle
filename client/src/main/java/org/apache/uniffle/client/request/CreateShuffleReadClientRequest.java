@@ -163,6 +163,7 @@ public class CreateShuffleReadClientRequest {
     this.rssConf = rssConf;
   }
 
+
   public String getAppId() {
     return appId;
   }
