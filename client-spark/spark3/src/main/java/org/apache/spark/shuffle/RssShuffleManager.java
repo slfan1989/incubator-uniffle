@@ -34,6 +34,7 @@ import scala.collection.Seq;
 import com.google.common.annotations.VisibleForTesting;
 import com.google.common.collect.Sets;
 import edu.umd.cs.findbugs.annotations.SuppressFBWarnings;
+import org.apache.commons.lang3.tuple.Pair;
 import org.apache.hadoop.conf.Configuration;
 import org.apache.spark.MapOutputTracker;
 import org.apache.spark.ShuffleDependency;
@@ -72,7 +73,10 @@ import org.apache.uniffle.common.exception.RssException;
 import org.apache.uniffle.common.exception.RssFetchFailedException;
 import org.apache.uniffle.common.util.RssUtils;
 import org.apache.uniffle.shuffle.RssShuffleClientFactory;
+import org.apache.uniffle.shuffle.ShuffleWriteTaskStats;
 import org.apache.uniffle.shuffle.manager.RssShuffleManagerBase;
+
+import static org.apache.spark.shuffle.RssSparkConfig.RSS_CLIENT_INTEGRITY_VALIDATION_ENABLED;
 
 public class RssShuffleManager extends RssShuffleManagerBase {
   private static final Logger LOG = LoggerFactory.getLogger(RssShuffleManager.class);
@@ -80,6 +84,9 @@ public class RssShuffleManager extends RssShuffleManagerBase {
   public RssShuffleManager(SparkConf conf, boolean isDriver) {
     super(conf, isDriver);
     this.dataDistributionType = getDataDistributionType(sparkConf);
+    if (isIntegrityValidationEnabled(rssConf)) {
+      LOG.info("shuffle row-based validation has been enabled.");
+    }
   }
 
   // For testing only
@@ -288,9 +295,11 @@ public class RssShuffleManager extends RssShuffleManagerBase {
       TaskContext context,
       ShuffleReadMetricsReporter metrics) {
     long start = System.currentTimeMillis();
-    Roaring64NavigableMap taskIdBitmap =
+    Pair<Roaring64NavigableMap, Long> info =
         getExpectedTasksByExecutorId(
             handle.shuffleId(), startPartition, endPartition, startMapIndex, endMapIndex);
+    Roaring64NavigableMap taskIdBitmap = info.getLeft();
+    long expectedRecordsRead = info.getRight();
     LOG.info(
         "Get taskId cost "
             + (System.currentTimeMillis() - start)
@@ -311,7 +320,8 @@ public class RssShuffleManager extends RssShuffleManagerBase {
         endPartition,
         context,
         metrics,
-        taskIdBitmap);
+        taskIdBitmap,
+        expectedRecordsRead);
   }
 
   // The interface is used for compatibility with spark 3.0.1
@@ -347,7 +357,8 @@ public class RssShuffleManager extends RssShuffleManagerBase {
         endPartition,
         context,
         metrics,
-        taskIdBitmap);
+        taskIdBitmap,
+        -1);
   }
 
   public <K, C> ShuffleReader<K, C> getReaderImpl(
@@ -358,7 +369,8 @@ public class RssShuffleManager extends RssShuffleManagerBase {
       int endPartition,
       TaskContext context,
       ShuffleReadMetricsReporter metrics,
-      Roaring64NavigableMap taskIdBitmap) {
+      Roaring64NavigableMap taskIdBitmap,
+      long expectedRecordsRead) {
     if (!(handle instanceof RssShuffleHandle)) {
       throw new RssException("Unexpected ShuffleHandle:" + handle.getClass().getName());
     }
@@ -443,7 +455,8 @@ public class RssShuffleManager extends RssShuffleManagerBase {
         managerClientSupplier,
         RssSparkConfig.toRssConf(sparkConf),
         dataDistributionType,
-        shuffleHandleInfo.getAllPartitionServersForReader());
+        shuffleHandleInfo.getAllPartitionServersForReader(),
+        expectedRecordsRead);
   }
 
   private Map<ShuffleServerInfo, Set<Integer>> getPartitionDataServers(
@@ -459,8 +472,16 @@ public class RssShuffleManager extends RssShuffleManagerBase {
     return serverToPartitions;
   }
 
+  public static boolean isIntegrityValidationEnabled(RssConf rssConf) {
+    assert rssConf != null;
+    if (!Spark3VersionUtils.isSparkVersionAtLeast("3.5.0")) {
+      return false;
+    }
+    return rssConf.get(RSS_CLIENT_INTEGRITY_VALIDATION_ENABLED);
+  }
+
   @SuppressFBWarnings("REC_CATCH_EXCEPTION")
-  private Roaring64NavigableMap getExpectedTasksByExecutorId(
+  private Pair<Roaring64NavigableMap, Long> getExpectedTasksByExecutorId(
       int shuffleId, int startPartition, int endPartition, int startMapIndex, int endMapIndex) {
     Roaring64NavigableMap taskIdBitmap = Roaring64NavigableMap.bitmapOf();
     Iterator<Tuple2<BlockManagerId, Seq<Tuple3<BlockId, Object, Object>>>> mapStatusIter = null;
@@ -529,14 +550,25 @@ public class RssShuffleManager extends RssShuffleManagerBase {
     } catch (Exception e) {
       throw new RssException(e);
     }
+    long expectedRecords = 0;
     while (mapStatusIter.hasNext()) {
       Tuple2<BlockManagerId, Seq<Tuple3<BlockId, Object, Object>>> tuple2 = mapStatusIter.next();
       if (!tuple2._1().topologyInfo().isDefined()) {
         throw new RssException("Can't get expected taskAttemptId");
       }
-      taskIdBitmap.add(Long.parseLong(tuple2._1().topologyInfo().get()));
+
+      String raw = tuple2._1().topologyInfo().get();
+      if (isIntegrityValidationEnabled(rssConf)) {
+        ShuffleWriteTaskStats shuffleWriteTaskStats = ShuffleWriteTaskStats.decode(raw);
+        taskIdBitmap.add(shuffleWriteTaskStats.getTaskAttemptId());
+        for (int i = startPartition; i < endPartition; i++) {
+          expectedRecords += shuffleWriteTaskStats.getRecordsWritten(i);
+        }
+      } else {
+        taskIdBitmap.add(Long.parseLong(raw));
+      }
     }
-    return taskIdBitmap;
+    return Pair.of(taskIdBitmap, expectedRecords);
   }
 
   // This API is only used by Spark3.0 and removed since 3.1,
