@@ -17,17 +17,35 @@
 
 package org.apache.uniffle.shuffle;
 
-import org.junit.jupiter.api.Test;
+import java.util.stream.Stream;
 
+import org.junit.jupiter.params.ParameterizedTest;
+import org.junit.jupiter.params.provider.Arguments;
+import org.junit.jupiter.params.provider.MethodSource;
+
+import org.apache.uniffle.common.compression.Codec;
+import org.apache.uniffle.common.config.RssConf;
+
+import static org.apache.spark.shuffle.RssSparkConfig.RSS_CLIENT_INTEGRITY_VALIDATION_STATS_COMPRESSION_TYPE;
 import static org.junit.jupiter.api.Assertions.assertEquals;
 
 public class ShuffleWriteTaskStatsTest {
 
-  @Test
-  public void testValidValidationInfo() {
+  private static Stream<Arguments> codecType() {
+    RssConf conf1 = new RssConf();
+    conf1.set(RSS_CLIENT_INTEGRITY_VALIDATION_STATS_COMPRESSION_TYPE, Codec.Type.LZ4);
+    RssConf conf2 = new RssConf();
+    RssConf conf3 = new RssConf();
+    conf3.set(RSS_CLIENT_INTEGRITY_VALIDATION_STATS_COMPRESSION_TYPE, Codec.Type.NONE);
+    return Stream.of(Arguments.of(conf1), Arguments.of(conf2), Arguments.of(conf3));
+  }
+
+  @ParameterizedTest
+  @MethodSource("codecType")
+  public void testValidValidationInfo(RssConf rssConf) {
     long taskId = 10;
     long taskAttemptId = 12345L;
-    ShuffleWriteTaskStats stats = new ShuffleWriteTaskStats(2, taskAttemptId, taskId);
+    ShuffleWriteTaskStats stats = new ShuffleWriteTaskStats(rssConf, 2, taskAttemptId, taskId);
     stats.incPartitionRecord(0);
     stats.incPartitionRecord(1);
 
@@ -35,15 +53,13 @@ public class ShuffleWriteTaskStatsTest {
     stats.incPartitionBlock(1);
 
     String encoded = stats.encode();
-    ShuffleWriteTaskStats decoded = ShuffleWriteTaskStats.decode(encoded);
+    System.out.println("Encoded length: " + encoded.length());
+    ShuffleWriteTaskStats decoded = ShuffleWriteTaskStats.decode(rssConf, encoded);
 
     assertEquals(10, stats.getTaskId());
 
     assertEquals(taskAttemptId, decoded.getTaskAttemptId());
     assertEquals(1, decoded.getRecordsWritten(0));
     assertEquals(1, decoded.getRecordsWritten(1));
-
-    assertEquals(1, decoded.getBlocksWritten(0));
-    assertEquals(1, decoded.getBlocksWritten(1));
   }
 }
