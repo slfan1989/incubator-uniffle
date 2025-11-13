@@ -79,7 +79,7 @@ import org.apache.uniffle.client.impl.grpc.CoordinatorGrpcRetryableClient;
 import org.apache.uniffle.client.request.RssFetchClientConfRequest;
 import org.apache.uniffle.client.request.RssPartitionToShuffleServerRequest;
 import org.apache.uniffle.client.response.RssFetchClientConfResponse;
-import org.apache.uniffle.client.response.RssReassignOnBlockSendFailureResponse;
+import org.apache.uniffle.client.response.RssGetAssignmentForBlockRetryResponse;
 import org.apache.uniffle.client.response.RssReassignOnStageRetryResponse;
 import org.apache.uniffle.client.util.ClientUtils;
 import org.apache.uniffle.common.ClientType;
@@ -914,8 +914,21 @@ public abstract class RssShuffleManagerBase implements RssShuffleManagerInterfac
     } else if (shuffleManagerRpcServiceEnabled && partitionReassignEnabled) {
       // In partition block Retry mode, Get the ShuffleServer list from the Driver based on the
       // shuffleId.
-      return getRemoteShuffleHandleInfoWithBlockRetry(
-          stageAttemptId, stageAttemptNumber, shuffleId, isWritePhase);
+      ShuffleHandleInfo handle =
+          getRemoteShuffleHandleInfoWithBlockRetry(
+              stageAttemptId, stageAttemptNumber, shuffleId, isWritePhase);
+      if (handle == null) {
+        // if the handle is null, it means the shuffleHandle haven't been updated.
+        // we could re-construct from the spark's handle, that is to reduce the rpc data bytes
+        // transmit.
+        handle =
+            new MutableShuffleHandleInfo(
+                shuffleId,
+                rssHandle.getPartitionToServers(),
+                rssHandle.getRemoteStorage(),
+                partitionSplitMode);
+      }
+      return handle;
     } else {
       return new SimpleShuffleHandleInfo(
           shuffleId, rssHandle.getPartitionToServers(), rssHandle.getRemoteStorage());
@@ -954,7 +967,7 @@ public abstract class RssShuffleManagerBase implements RssShuffleManagerInterfac
     RssPartitionToShuffleServerRequest rssPartitionToShuffleServerRequest =
         new RssPartitionToShuffleServerRequest(
             stageAttemptId, stageAttemptNumber, shuffleId, isWritePhase);
-    RssReassignOnBlockSendFailureResponse rpcPartitionToShufflerServer =
+    RssGetAssignmentForBlockRetryResponse rpcPartitionToShufflerServer =
         getOrCreateShuffleManagerClientSupplier()
             .get()
             .getPartitionToShufflerServerWithBlockRetry(rssPartitionToShuffleServerRequest);
